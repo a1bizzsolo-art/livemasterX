@@ -5,8 +5,8 @@ import Hero from "../components/landing/Hero";
 import Ticker from "../components/landing/Ticker";
 import Systems from "../components/landing/Systems";
 import Ariah from "../components/landing/Ariah";
-import Architecture from "../components/landing/Architecture";
-import Stack from "../components/landing/Stack";
+import LiveField from "../components/landing/LiveField";
+import Outcomes from "../components/landing/Outcomes";
 import Roadmap from "../components/landing/Roadmap";
 import Waitlist from "../components/landing/Waitlist";
 import Footer from "../components/landing/Footer";
@@ -24,10 +24,7 @@ export default function Landing() {
 
   useEffect(() => {
     let mounted = true;
-    axios
-      .get(`${API}/waitlist/stats`)
-      .then((r) => mounted && setStats(r.data))
-      .catch(() => {});
+    axios.get(`${API}/waitlist/stats`).then((r) => mounted && setStats(r.data)).catch(() => {});
     return () => {
       mounted = false;
     };
@@ -37,7 +34,7 @@ export default function Landing() {
     try {
       const r = await axios.get(`${API}/waitlist/stats`);
       setStats(r.data);
-    } catch (e) {
+    } catch {
       /* noop */
     }
   };
@@ -49,8 +46,8 @@ export default function Landing() {
       <Ticker />
       <Systems />
       <Ariah />
-      <Architecture />
-      <Stack />
+      <LiveField api={API} />
+      <Outcomes />
       <Roadmap />
       <Waitlist api={API} onJoined={refreshStats} stats={stats} />
       <Footer />

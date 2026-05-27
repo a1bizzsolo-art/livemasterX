@@ -67,10 +67,10 @@ export default function Hero({ stats }) {
               </button>
               <button
                 data-testid="hero-cta-secondary"
-                onClick={() => scrollTo("architecture")}
+                onClick={() => scrollTo("live")}
                 className="inline-flex items-center justify-center gap-2 border border-slate-700 px-6 py-4 text-xs font-bold uppercase tracking-[0.2em] text-white hover:border-amber-500 hover:text-amber-400 transition-colors"
               >
-                Read Architecture
+                See Live Field
               </button>
             </div>
 

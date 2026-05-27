@@ -32,8 +32,8 @@ export default function Footer() {
             items={[
               ["AQAS Assistant", "systems"],
               ["Ariah Sales", "ariah"],
-              ["Architecture", "architecture"],
-              ["Stack", "stack"],
+              ["Live Feed", "live"],
+              ["Efficiency", "outcomes"],
               ["Roadmap", "roadmap"],
             ]}
           />

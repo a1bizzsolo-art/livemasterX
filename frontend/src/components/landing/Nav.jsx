@@ -44,8 +44,8 @@ export default function Nav() {
             {[
               ["systems", "Systems"],
               ["ariah", "Ariah"],
-              ["architecture", "Architecture"],
-              ["stack", "Stack"],
+              ["live", "Live Feed"],
+              ["outcomes", "Efficiency"],
               ["roadmap", "Roadmap"],
             ].map(([id, label]) => (
               <button
