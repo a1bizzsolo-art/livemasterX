@@ -1,0 +1,148 @@
+{
+  "theme": "dark",
+  "archetype": "2 (Performance Pro / Tactical Defense-Grade)",
+  "brand": {
+    "name": "A1A1 (AQAS)",
+    "tagline": "Powered by 10 to the 4th power of agents",
+    "cta_theme": "everything overstep of Ariah",
+    "footer_branding": "A1A1 (AQAS) trademark branded by Duane Clevenger E.I.R technology"
+  },
+  "typography": {
+    "heading_font": "Chivo",
+    "body_font": "JetBrains Mono",
+    "technical_font": "JetBrains Mono",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter uppercase font-black",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight uppercase font-bold",
+      "h3": "text-xl sm:text-2xl tracking-tight uppercase",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed text-slate-400",
+      "technical_label": "text-xs tracking-[0.2em] uppercase text-amber-500"
+    },
+    "guidelines": "Do not center align headings. Left-align text for technical reading. Use uppercase and wide tracking for overlines and technical telemetry data."
+  },
+  "colors": {
+    "background": {
+      "base": "#0A0A0C",
+      "surface": "#121418",
+      "elevated": "#1A1D24",
+      "glass": "bg-black/60 backdrop-blur-xl"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#94A3B8",
+      "accent": "#FFB000",
+      "danger": "#FF3B30",
+      "success": "#00FF41"
+    },
+    "border": {
+      "default": "border-slate-800",
+      "active": "border-amber-500/50"
+    },
+    "accent": {
+      "primary": "#FFB000",
+      "hover": "#FFC840"
+    },
+    "guidelines": "No purple gradients. Use tactical high-contrast amber for accents. Base backgrounds should be deep obsidian (tinted heavily towards cool slate). Use 1px sharp borders."
+  },
+  "spacing_and_layout": {
+    "grid_mode": "Control Room Grid (Dense, structural, border-collapse look)",
+    "padding_scale": "p-6 to p-12 for containers. Dense padding for data cards.",
+    "alignment": "Left-aligned content. Asymmetrical bento grids with visible borders. Use Subgrid where possible.",
+    "guidelines": "Create a 'terminal look' by using grid lines between sections. Avoid rounded corners; use sharp edges or max 2px border radius. Expose the skeleton of the UI."
+  },
+  "surfaces_and_borders": {
+    "style": "Retro-Futurism / Terminal Look",
+    "corners": "rounded-none or rounded-sm",
+    "borders": "1px solid border-slate-800, often with border-collapse so elements share borders. Glow effects on active states via drop-shadow-[0_0_8px_rgba(255,176,0,0.5)].",
+    "shadows": "Hard shadows or no shadows. Rely on 1px borders for separation. No soft diffuse shadows."
+  },
+  "components": {
+    "hero": "Terminal-style command center. Split layout: Left side bold typography (H1), Right side live satellite/NDVI map visual overlay. Use a scanning radar animation overlay if possible.",
+    "buttons": "Rectangular, sharp edges. Primary CTA: Amber background, black text, bold uppercase. Hover: Lighter amber. Secondary: Transparent with amber border, amber text.",
+    "cards": "Flat background (#121418), 1px subtle border, no shadow. Monospace data readouts inside.",
+    "navigation": "Sticky top bar, crystal glassmorphism (bg-black/80 backdrop-blur-md) with a hard bottom border-slate-800.",
+    "icons": "Phosphor Icons (Duotone or Regular) or Lucide. Technical, minimal.",
+    "architecture_diagram": "Rendered as a structural flow using monospace text and connected nodes, glowing amber active states."
+  },
+  "sections": [
+    {
+      "name": "Navigation",
+      "content": "Logo A1A1 (AQAS), links to Systems, Ariah, Architecture, Waitlist, and primary CTA 'Initiate Sequence'."
+    },
+    {
+      "name": "Hero",
+      "content": "H1: '10,000 AI AGENTS. ZERO BLIND SPOTS.', Subtitle: 'Powered by 10 to the 4th power of agents. Enterprise precision-agriculture and defense-grade operational intelligence.', CTA: 'EVERYTHING OVERSTEP OF ARIAH'. Visual: generated satellite_ndvi_map."
+    },
+    {
+      "name": "AQAS AI Assistant",
+      "content": "Capabilities matrix: Recommendations, Irrigation Planning, Operational Alerts, Analytics Summaries. Display as a terminal console output window."
+    },
+    {
+      "name": "Ariah Sales Engine",
+      "content": "Autonomous sales engine section highlighting Apollo, Instantly, HubSpot integration. Data flow visuals."
+    },
+    {
+      "name": "Architecture Overview",
+      "content": "Architecture diagram: User -> Next.js -> API Layer -> AI Services + Database -> Satellite + Weather APIs -> Automation Systems. Visual: generated architecture_diagram."
+    },
+    {
+      "name": "Stack Showcase",
+      "content": "Grid of technologies: Next.js, Supabase, OpenAI, Mapbox, Sentinel Hub, n8n, Vercel, Stripe. Use monospace labels and subtle glowing borders on hover."
+    },
+    {
+      "name": "Roadmap",
+      "content": "Phased rollout roadmap (Week 1-4). Displayed as a vertical timeline or Gantt chart style with tactical waypoints."
+    },
+    {
+      "name": "Lead Capture / Waitlist",
+      "content": "Form to join waitlist. Terminal input style. Minimalist inputs with sharp borders."
+    },
+    {
+      "name": "Footer",
+      "content": "Stats / trust indicators. Text: 'A1A1 (AQAS) trademark branded by Duane Clevenger E.I.R technology'."
+    }
+  ],
+  "motion_and_interactions": {
+    "hover": "High contrast border color shifts (slate to amber). Fast transitions (0.15s).",
+    "entrance": "Fade in with slight upward motion. No bouncy easing. Linear or sharp ease-out.",
+    "special_effects": "Use a subtle CSS scanning line (repeating-linear-gradient) over the hero map visual for a radar/satellite effect."
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/89ebfdf8-4335-43e7-a10b-95be04465ba1/images/da709a71792e50d5a31f39d3fa2e5277aae9a5ed8e2a0be8add53690023686c4.png",
+        "description": "High-contrast satellite view of agricultural fields, NDVI mapping style, tactical defense UI overlay",
+        "category": "hero_visual",
+        "placement": "Hero section right side or background with heavy dark overlay"
+      },
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/89ebfdf8-4335-43e7-a10b-95be04465ba1/images/526a247ba59b6981ba26564857671abeb72c9abc19eb09f280ca84dc3226a386.png",
+        "description": "Abstract architecture diagram, server nodes glowing in tactical amber and obsidian",
+        "category": "architecture_diagram",
+        "placement": "Architecture section visual"
+      },
+      {
+        "url": "https://images.pexels.com/photos/15509902/pexels-photo-15509902.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Aerial view of winding river through urban and natural landscapes",
+        "category": "background_texture",
+        "placement": "Subtle background overlay with high opacity reduction in data sections"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1508175688576-0c076b47b5b5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHx0aGVybWFsJTIwbWFwJTIwYWdyaWN1bHR1cmV8ZW58MHx8fHwxNzc5ODY4NjkzfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Aerial photography of field representing thermal/moisture mapping",
+        "category": "feature_visual",
+        "placement": "AQAS AI Assistant or Moisture Zone section"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Use standard Tailwind CSS and raw HTML (divs, sections, spans) for major layout blocks to achieve the exposed 'grid border' Palantir/defense look.",
+    "Do NOT use generic card shadows or rounded corners (keep it sharp, max rounded-sm).",
+    "Use 'border-collapse' style structures where neighboring div borders overlap.",
+    "Include 'data-testid' on all buttons, forms, and interactive elements.",
+    "Use JetBrains Mono for all data readouts, labels, and small text. Use Chivo for large H1/H2 headings.",
+    "Never use purple gradients or soft UI elements. Stick to Slate/Obsidian, pure White, and Tactical Amber (#FFB000) for alerts/CTAs.",
+    "Install and use `lucide-react` for technical/minimal icons."
+  ]
+}
