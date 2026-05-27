@@ -91,9 +91,10 @@ async def join_waitlist(payload: WaitlistCreate):
     if existing:
         raise HTTPException(status_code=409, detail="This signal is already registered on the grid.")
 
-    entry = WaitlistEntry(**payload.model_dump())
+    data = payload.model_dump()
+    data['email'] = data['email'].lower()
+    entry = WaitlistEntry(**data)
     doc = entry.model_dump()
-    doc['email'] = doc['email'].lower()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.waitlist.insert_one(doc)
     return entry
