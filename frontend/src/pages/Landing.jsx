@@ -6,6 +6,7 @@ import Ticker from "../components/landing/Ticker";
 import Systems from "../components/landing/Systems";
 import Ariah from "../components/landing/Ariah";
 import LiveField from "../components/landing/LiveField";
+import Copernicus from "../components/landing/Copernicus";
 import Outcomes from "../components/landing/Outcomes";
 import Pricing from "../components/landing/Pricing";
 import Roadmap from "../components/landing/Roadmap";
@@ -48,6 +49,7 @@ export default function Landing() {
       <Systems />
       <Ariah />
       <LiveField api={API} />
+      <Copernicus />
       <Outcomes />
       <Pricing api={API} />
       <Roadmap />

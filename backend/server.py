@@ -334,50 +334,48 @@ async def field_list():
 
 
 # ---------- Stripe Checkout + Closed Deals ----------
-PRICING_TIERS: Dict[str, Dict[str, Any]] = {
-    "starter": {
-        "id": "starter",
-        "name": "Starter",
-        "tagline": "Single operator. Up to 500 acres.",
-        "amount": 499.00,
-        "currency": "usd",
-        "features": [
-            "Live satellite + soil moisture",
-            "Daily AQAS briefing",
-            "1 field, 1 operator seat",
-            "Email alerts",
-        ],
-    },
-    "pro": {
-        "id": "pro",
-        "name": "Pro",
-        "tagline": "Multi-field ops. Up to 10,000 acres.",
-        "amount": 1999.00,
-        "currency": "usd",
-        "features": [
-            "Everything in Starter",
-            "Up to 25 fields, 10 operator seats",
-            "Ariah autonomous outreach",
-            "API + n8n automation hooks",
-            "Priority telemetry refresh",
-        ],
-    },
-    "enterprise": {
-        "id": "enterprise",
-        "name": "Enterprise",
-        "tagline": "Co-ops + defense-grade ops.",
-        "amount": 9999.00,
-        "currency": "usd",
-        "features": [
-            "Everything in Pro",
-            "Unlimited fields + seats",
-            "Dedicated agent quorum",
-            "Custom satellite revisit cadence",
-            "On-call ops engineer",
-            "SLA 99.99%",
-        ],
-    },
+# Per-acre annual subscription model. We position ~30% below the industry
+# average for precision-ag satellite + advisory services and reward longer
+# commitments with progressive discounts.
+MARKET_RATE_USD_PER_ACRE = 6.00  # industry average $/acre/year (precision ag + advisory)
+BASE_RATE_USD_PER_ACRE = 4.20    # our 1-year list price — already ~30% under market
+
+CONTRACT_TERMS: Dict[int, Dict[str, Any]] = {
+    1:  {"name": "Operator",   "discount_pct": 0.00,  "rate": 4.20, "tagline": "Single season. No lock-in."},
+    3:  {"name": "Sustained",  "discount_pct": 0.10,  "rate": 3.78, "tagline": "3-year ops cadence."},
+    5:  {"name": "Strategic",  "discount_pct": 0.18,  "rate": 3.44, "tagline": "5-year, locked rate."},
+    10: {"name": "Quantum",    "discount_pct": 0.28,  "rate": 3.02, "tagline": "Decade-long deployment."},
 }
+
+MIN_ACRES = 50
+MAX_ACRES = 10_000_000
+
+
+def _quote(acres: int, years: int) -> Dict[str, Any]:
+    if years not in CONTRACT_TERMS:
+        raise HTTPException(status_code=400, detail="Term must be 1, 3, 5, or 10 years.")
+    if acres < MIN_ACRES or acres > MAX_ACRES:
+        raise HTTPException(status_code=400, detail=f"Acreage must be between {MIN_ACRES} and {MAX_ACRES:,}.")
+
+    term = CONTRACT_TERMS[years]
+    annual_per_acre = term["rate"]
+    annual_total = round(acres * annual_per_acre, 2)
+    contract_total = round(annual_total * years, 2)
+    market_total = round(acres * MARKET_RATE_USD_PER_ACRE * years, 2)
+    savings = round(market_total - contract_total, 2)
+    return {
+        "acres": acres,
+        "years": years,
+        "term_name": term["name"],
+        "tagline": term["tagline"],
+        "annual_per_acre": annual_per_acre,
+        "annual_total": annual_total,
+        "contract_total": contract_total,
+        "market_total": market_total,
+        "savings": savings,
+        "discount_pct": term["discount_pct"],
+        "currency": "usd",
+    }
 
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
 
@@ -391,10 +389,16 @@ def _stripe_client(request: Request) -> StripeCheckout:
 
 
 class CheckoutCreate(BaseModel):
-    tier: str
+    acres: int = Field(ge=MIN_ACRES, le=MAX_ACRES)
+    years: int = Field(description="Contract length: 1, 3, 5, or 10")
     origin_url: str
     customer_email: Optional[EmailStr] = None
     customer_name: Optional[str] = Field(default=None, max_length=120)
+
+
+class QuoteRequest(BaseModel):
+    acres: int = Field(ge=MIN_ACRES, le=MAX_ACRES)
+    years: int
 
 
 @api_router.get("/pricing")
@@ -403,34 +407,48 @@ async def pricing():
     mode = "live" if "live" in key else "sandbox"
     return {
         "mode": mode,
-        "tiers": [
+        "model": "per_acre_annual",
+        "currency": "usd",
+        "market_rate_per_acre": MARKET_RATE_USD_PER_ACRE,
+        "base_rate_per_acre": BASE_RATE_USD_PER_ACRE,
+        "savings_pct_vs_market": round(
+            (1 - (BASE_RATE_USD_PER_ACRE / MARKET_RATE_USD_PER_ACRE)) * 100, 1
+        ),
+        "min_acres": MIN_ACRES,
+        "max_acres": MAX_ACRES,
+        "terms": [
             {
-                "id": t["id"],
+                "years": yrs,
                 "name": t["name"],
                 "tagline": t["tagline"],
-                "amount": t["amount"],
-                "currency": t["currency"],
-                "features": t["features"],
+                "rate_per_acre": t["rate"],
+                "discount_pct": int(t["discount_pct"] * 100),
             }
-            for t in PRICING_TIERS.values()
-        ]
+            for yrs, t in CONTRACT_TERMS.items()
+        ],
     }
+
+
+@api_router.post("/pricing/quote")
+async def pricing_quote(payload: QuoteRequest):
+    return _quote(payload.acres, payload.years)
 
 
 @api_router.post("/checkout/session")
 async def create_checkout(payload: CheckoutCreate, request: Request):
-    tier = PRICING_TIERS.get(payload.tier)
-    if not tier:
-        raise HTTPException(status_code=400, detail="Invalid tier.")
+    quote = _quote(payload.acres, payload.years)
 
     origin = payload.origin_url.rstrip("/")
     success_url = f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/payment/cancel"
 
     metadata = {
-        "tier_id": tier["id"],
-        "tier_name": tier["name"],
-        "source": "landing_pricing",
+        "acres": str(quote["acres"]),
+        "years": str(quote["years"]),
+        "term_name": quote["term_name"],
+        "annual_per_acre": str(quote["annual_per_acre"]),
+        "savings_vs_market": str(quote["savings"]),
+        "source": "landing_per_acre",
     }
     if payload.customer_email:
         metadata["customer_email"] = str(payload.customer_email)
@@ -439,22 +457,26 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
 
     stripe = _stripe_client(request)
     req = CheckoutSessionRequest(
-        amount=float(tier["amount"]),
-        currency=tier["currency"],
+        amount=float(quote["contract_total"]),
+        currency=quote["currency"],
         success_url=success_url,
         cancel_url=cancel_url,
         metadata=metadata,
     )
     session: CheckoutSessionResponse = await stripe.create_checkout_session(req)
 
-    # Persist a pending transaction record before redirecting.
     txn = {
         "id": str(uuid.uuid4()),
         "session_id": session.session_id,
-        "tier_id": tier["id"],
-        "tier_name": tier["name"],
-        "amount": float(tier["amount"]),
-        "currency": tier["currency"],
+        "tier_id": f"{quote['years']}y",
+        "tier_name": f"{quote['term_name']} • {quote['years']}y • {quote['acres']:,} ac",
+        "acres": quote["acres"],
+        "years": quote["years"],
+        "annual_per_acre": quote["annual_per_acre"],
+        "annual_total": quote["annual_total"],
+        "savings_vs_market": quote["savings"],
+        "amount": float(quote["contract_total"]),
+        "currency": quote["currency"],
         "customer_email": str(payload.customer_email).lower() if payload.customer_email else None,
         "customer_name": payload.customer_name,
         "metadata": metadata,
@@ -465,7 +487,7 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
     }
     await db.payment_transactions.insert_one(txn)
 
-    return {"url": session.url, "session_id": session.session_id}
+    return {"url": session.url, "session_id": session.session_id, "quote": quote}
 
 
 async def _finalize_payment(session_id: str, request: Request) -> Dict[str, Any]:
