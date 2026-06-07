@@ -7,6 +7,7 @@ import Systems from "../components/landing/Systems";
 import Ariah from "../components/landing/Ariah";
 import LiveField from "../components/landing/LiveField";
 import Outcomes from "../components/landing/Outcomes";
+import Pricing from "../components/landing/Pricing";
 import Roadmap from "../components/landing/Roadmap";
 import Waitlist from "../components/landing/Waitlist";
 import Footer from "../components/landing/Footer";
@@ -48,6 +49,7 @@ export default function Landing() {
       <Ariah />
       <LiveField api={API} />
       <Outcomes />
+      <Pricing api={API} />
       <Roadmap />
       <Waitlist api={API} onJoined={refreshStats} stats={stats} />
       <Footer />

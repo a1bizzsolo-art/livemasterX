@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Query, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,6 +11,14 @@ from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
+
+from emergentintegrations.payments.stripe.checkout import (
+    StripeCheckout,
+    CheckoutSessionResponse,
+    CheckoutStatusResponse,
+    CheckoutSessionRequest,
+)
+import gmail_notifier
 
 
 ROOT_DIR = Path(__file__).parent
@@ -99,6 +107,25 @@ async def join_waitlist(payload: WaitlistCreate):
     doc = entry.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.waitlist.insert_one(doc)
+
+    # Notify owner Gmail (no-op if creds not configured yet).
+    try:
+        gmail_notifier.send_notification(
+            subject=f"[A1A1 AQAS] New waitlist signup — {entry.name}",
+            body=(
+                f"New operator on the waitlist\n"
+                f"-----------------------------\n"
+                f"Name:         {entry.name}\n"
+                f"Email:        {entry.email}\n"
+                f"Organization: {entry.organization or '—'}\n"
+                f"Use case:     {entry.use_case or '—'}\n"
+                f"Acreage:      {entry.acreage or '—'}\n"
+                f"Joined at:    {doc['created_at']}\n"
+            ),
+        )
+    except Exception as e:
+        logger.warning("Waitlist notification failed: %s", e)
+
     return entry
 
 
@@ -303,6 +330,291 @@ async def field_list():
             {"id": k, "label": v["label"], "crop": v["crop"], "lat": v["lat"], "lon": v["lon"]}
             for k, v in PRESET_FIELDS.items()
         ]
+    }
+
+
+# ---------- Stripe Checkout + Closed Deals ----------
+PRICING_TIERS: Dict[str, Dict[str, Any]] = {
+    "starter": {
+        "id": "starter",
+        "name": "Starter",
+        "tagline": "Single operator. Up to 500 acres.",
+        "amount": 499.00,
+        "currency": "usd",
+        "features": [
+            "Live satellite + soil moisture",
+            "Daily AQAS briefing",
+            "1 field, 1 operator seat",
+            "Email alerts",
+        ],
+    },
+    "pro": {
+        "id": "pro",
+        "name": "Pro",
+        "tagline": "Multi-field ops. Up to 10,000 acres.",
+        "amount": 1999.00,
+        "currency": "usd",
+        "features": [
+            "Everything in Starter",
+            "Up to 25 fields, 10 operator seats",
+            "Ariah autonomous outreach",
+            "API + n8n automation hooks",
+            "Priority telemetry refresh",
+        ],
+    },
+    "enterprise": {
+        "id": "enterprise",
+        "name": "Enterprise",
+        "tagline": "Co-ops + defense-grade ops.",
+        "amount": 9999.00,
+        "currency": "usd",
+        "features": [
+            "Everything in Pro",
+            "Unlimited fields + seats",
+            "Dedicated agent quorum",
+            "Custom satellite revisit cadence",
+            "On-call ops engineer",
+            "SLA 99.99%",
+        ],
+    },
+}
+
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
+
+
+def _stripe_client(request: Request) -> StripeCheckout:
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=500, detail="Stripe key not configured.")
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    return StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+
+
+class CheckoutCreate(BaseModel):
+    tier: str
+    origin_url: str
+    customer_email: Optional[EmailStr] = None
+    customer_name: Optional[str] = Field(default=None, max_length=120)
+
+
+@api_router.get("/pricing")
+async def pricing():
+    key = STRIPE_API_KEY or ""
+    mode = "live" if "live" in key else "sandbox"
+    return {
+        "mode": mode,
+        "tiers": [
+            {
+                "id": t["id"],
+                "name": t["name"],
+                "tagline": t["tagline"],
+                "amount": t["amount"],
+                "currency": t["currency"],
+                "features": t["features"],
+            }
+            for t in PRICING_TIERS.values()
+        ]
+    }
+
+
+@api_router.post("/checkout/session")
+async def create_checkout(payload: CheckoutCreate, request: Request):
+    tier = PRICING_TIERS.get(payload.tier)
+    if not tier:
+        raise HTTPException(status_code=400, detail="Invalid tier.")
+
+    origin = payload.origin_url.rstrip("/")
+    success_url = f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin}/payment/cancel"
+
+    metadata = {
+        "tier_id": tier["id"],
+        "tier_name": tier["name"],
+        "source": "landing_pricing",
+    }
+    if payload.customer_email:
+        metadata["customer_email"] = str(payload.customer_email)
+    if payload.customer_name:
+        metadata["customer_name"] = payload.customer_name
+
+    stripe = _stripe_client(request)
+    req = CheckoutSessionRequest(
+        amount=float(tier["amount"]),
+        currency=tier["currency"],
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata,
+    )
+    session: CheckoutSessionResponse = await stripe.create_checkout_session(req)
+
+    # Persist a pending transaction record before redirecting.
+    txn = {
+        "id": str(uuid.uuid4()),
+        "session_id": session.session_id,
+        "tier_id": tier["id"],
+        "tier_name": tier["name"],
+        "amount": float(tier["amount"]),
+        "currency": tier["currency"],
+        "customer_email": str(payload.customer_email).lower() if payload.customer_email else None,
+        "customer_name": payload.customer_name,
+        "metadata": metadata,
+        "payment_status": "pending",
+        "status": "initiated",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.payment_transactions.insert_one(txn)
+
+    return {"url": session.url, "session_id": session.session_id}
+
+
+async def _finalize_payment(session_id: str, request: Request) -> Dict[str, Any]:
+    """Idempotently mark a transaction as paid, create the closed deal, notify."""
+    txn = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not txn:
+        raise HTTPException(status_code=404, detail="Unknown checkout session.")
+
+    if txn.get("payment_status") == "paid":
+        # Already finalized — return current state.
+        return {
+            "status": txn.get("status"),
+            "payment_status": txn.get("payment_status"),
+            "amount": txn.get("amount"),
+            "currency": txn.get("currency"),
+            "tier_name": txn.get("tier_name"),
+            "already_processed": True,
+        }
+
+    stripe = _stripe_client(request)
+    checkout_status: CheckoutStatusResponse = await stripe.get_checkout_status(session_id)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {
+            "$set": {
+                "status": checkout_status.status,
+                "payment_status": checkout_status.payment_status,
+                "amount_total_cents": checkout_status.amount_total,
+                "stripe_metadata": checkout_status.metadata or {},
+                "updated_at": now_iso,
+            }
+        },
+    )
+
+    response = {
+        "status": checkout_status.status,
+        "payment_status": checkout_status.payment_status,
+        "amount": checkout_status.amount_total / 100.0 if checkout_status.amount_total else txn.get("amount"),
+        "currency": checkout_status.currency or txn.get("currency"),
+        "tier_name": txn.get("tier_name"),
+        "already_processed": False,
+    }
+
+    # Only create the closed-deal record + notification once, on confirmed paid.
+    if checkout_status.payment_status == "paid":
+        existing = await db.closed_deals.find_one({"session_id": session_id}, {"_id": 0})
+        if not existing:
+            deal = {
+                "id": str(uuid.uuid4()),
+                "session_id": session_id,
+                "tier_id": txn.get("tier_id"),
+                "tier_name": txn.get("tier_name"),
+                "amount": checkout_status.amount_total / 100.0 if checkout_status.amount_total else txn.get("amount"),
+                "currency": (checkout_status.currency or txn.get("currency")).lower(),
+                "customer_email": txn.get("customer_email"),
+                "customer_name": txn.get("customer_name"),
+                "metadata": checkout_status.metadata or txn.get("metadata", {}),
+                "closed_at": now_iso,
+            }
+            await db.closed_deals.insert_one(deal)
+            _notify_closed_deal(deal)
+
+    return response
+
+
+def _notify_closed_deal(deal: Dict[str, Any]) -> None:
+    """Fire-and-forget Gmail notification for a closed deal."""
+    amount = deal.get("amount") or 0
+    currency = (deal.get("currency") or "usd").upper()
+    tier = deal.get("tier_name", "—")
+    customer = deal.get("customer_email") or deal.get("customer_name") or "anonymous"
+    subject = f"[A1A1 AQAS] Deal closed — {tier} — {currency} ${amount:,.2f}"
+    body = (
+        f"New closed deal\n"
+        f"---------------\n"
+        f"Tier:      {tier}\n"
+        f"Amount:    {currency} ${amount:,.2f}\n"
+        f"Customer:  {customer}\n"
+        f"Session:   {deal.get('session_id')}\n"
+        f"Closed at: {deal.get('closed_at')}\n"
+        f"\nMoney is routed to your Stripe account.\n"
+    )
+    html = f"""<!doctype html><html><body style="font-family:'JetBrains Mono',monospace;background:#0A0A0C;color:#fff;padding:24px;">
+  <div style="border:1px solid #1f2937;padding:20px;max-width:560px;">
+    <div style="font-size:10px;letter-spacing:0.24em;color:#FFB000;text-transform:uppercase;">// A1A1 (AQAS) // DEAL CLOSED</div>
+    <h2 style="font-family:Chivo,sans-serif;text-transform:uppercase;letter-spacing:-0.02em;margin:12px 0 0;">${amount:,.2f} {currency}</h2>
+    <div style="color:#94A3B8;font-size:12px;margin-top:6px;">{tier} — {customer}</div>
+    <hr style="border:none;border-top:1px solid #1f2937;margin:18px 0;" />
+    <div style="font-size:11px;color:#94A3B8;line-height:1.6;">
+      Session: {deal.get('session_id')}<br/>
+      Closed: {deal.get('closed_at')}
+    </div>
+  </div>
+</body></html>"""
+    gmail_notifier.send_notification(subject, body, html)
+
+
+@api_router.get("/checkout/status/{session_id}")
+async def checkout_status(session_id: str, request: Request):
+    return await _finalize_payment(session_id, request)
+
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    body = await request.body()
+    sig = request.headers.get("Stripe-Signature")
+    try:
+        stripe = _stripe_client(request)
+        event = await stripe.handle_webhook(body, sig)
+    except Exception as e:
+        logger.warning("Stripe webhook handling failed: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid webhook payload.")
+
+    if event and event.session_id and event.payment_status == "paid":
+        try:
+            await _finalize_payment(event.session_id, request)
+        except Exception as e:
+            logger.warning("Webhook _finalize_payment failed: %s", e)
+    return {"received": True}
+
+
+@api_router.get("/deals/stats")
+async def deals_stats():
+    pipeline = [
+        {
+            "$group": {
+                "_id": None,
+                "count": {"$sum": 1},
+                "revenue": {"$sum": "$amount"},
+            }
+        }
+    ]
+    rows = await db.closed_deals.aggregate(pipeline).to_list(1)
+    count = rows[0]["count"] if rows else 0
+    revenue = float(rows[0]["revenue"]) if rows else 0.0
+    last_deals = (
+        await db.closed_deals.find({}, {"_id": 0, "session_id": 0, "metadata": 0})
+        .sort("closed_at", -1)
+        .limit(5)
+        .to_list(5)
+    )
+    return {
+        "count": count,
+        "revenue": round(revenue, 2),
+        "currency": "USD",
+        "recent": last_deals,
+        "gmail_notifications": "configured" if gmail_notifier.is_configured() else "pending_credentials",
     }
 
 

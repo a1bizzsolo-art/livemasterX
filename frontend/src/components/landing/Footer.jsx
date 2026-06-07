@@ -34,6 +34,7 @@ export default function Footer() {
               ["Ariah Sales", "ariah"],
               ["Live Feed", "live"],
               ["Efficiency", "outcomes"],
+              ["Pricing", "pricing"],
               ["Roadmap", "roadmap"],
             ]}
           />
