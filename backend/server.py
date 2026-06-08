@@ -337,8 +337,8 @@ async def field_list():
 # Per-acre annual subscription model. We position ~30% below the industry
 # average for precision-ag satellite + advisory services and reward longer
 # commitments with progressive discounts.
-MARKET_RATE_USD_PER_ACRE = 6.00  # industry average $/acre/year (precision ag + advisory)
-BASE_RATE_USD_PER_ACRE = 4.20    # our 1-year list price — already ~30% under market
+MARKET_RATE_USD_PER_ACRE = 6.00
+BASE_RATE_USD_PER_ACRE = 4.20
 
 CONTRACT_TERMS: Dict[int, Dict[str, Any]] = {
     1:  {"name": "Operator",   "discount_pct": 0.00,  "rate": 4.20, "tagline": "Single season. No lock-in."},
@@ -349,32 +349,116 @@ CONTRACT_TERMS: Dict[int, Dict[str, Any]] = {
 
 MIN_ACRES = 50
 MAX_ACRES = 10_000_000
+ENTERPRISE_THRESHOLD_ACRES = 50_000
 
 
-def _quote(acres: int, years: int) -> Dict[str, Any]:
+def _implementation_fee(acres: int) -> Dict[str, Any]:
+    """One-time onboarding charge that scales with acreage. Stays under 5%
+    of the contract value at every tier so it never blocks a deal."""
+    if acres < 1_000:
+        return {"tier": "Starter", "amount": 10_000.0}
+    if acres < 25_000:
+        return {"tier": "Pro", "amount": 35_000.0}
+    return {"tier": "Enterprise", "amount": 150_000.0}
+
+
+ADD_ONS: Dict[str, Dict[str, Any]] = {
+    "priority_revisit": {
+        "id": "priority_revisit",
+        "name": "Priority Orbital Revisit",
+        "desc": "Tasked Sentinel + commercial constellation passes — sub-48h refresh.",
+        "rate_per_acre": 0.85,
+        "billing": "annual_per_acre",
+    },
+    "dedicated_quorum": {
+        "id": "dedicated_quorum",
+        "name": "Dedicated Agent Quorum",
+        "desc": "Isolated 2,500-agent pod tuned to your operation. No shared compute.",
+        "rate_flat_annual": 60_000.0,
+        "billing": "annual_flat",
+    },
+    "ops_engineer": {
+        "id": "ops_engineer",
+        "name": "On-Call Ops Engineer",
+        "desc": "24/7 paged human + agent escalation channel for critical events.",
+        "rate_flat_annual": 120_000.0,
+        "billing": "annual_flat",
+    },
+    "carbon_mrv": {
+        "id": "carbon_mrv",
+        "name": "Carbon Credit MRV",
+        "desc": "Satellite-verified measurement, reporting + verification. You keep 75% of credit revenue; we take 25%.",
+        "rate_revshare_pct": 25,
+        "billing": "revshare",
+    },
+}
+
+
+def _quote(
+    acres: int,
+    years: int,
+    add_ons: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     if years not in CONTRACT_TERMS:
         raise HTTPException(status_code=400, detail="Term must be 1, 3, 5, or 10 years.")
     if acres < MIN_ACRES or acres > MAX_ACRES:
         raise HTTPException(status_code=400, detail=f"Acreage must be between {MIN_ACRES} and {MAX_ACRES:,}.")
 
+    add_ons = add_ons or []
+    invalid = [a for a in add_ons if a not in ADD_ONS]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Unknown add-ons: {invalid}")
+
     term = CONTRACT_TERMS[years]
     annual_per_acre = term["rate"]
-    annual_total = round(acres * annual_per_acre, 2)
-    contract_total = round(annual_total * years, 2)
+    annual_base = round(acres * annual_per_acre, 2)
+
+    addons_annual = 0.0
+    addons_lines: List[Dict[str, Any]] = []
+    for aid in add_ons:
+        a = ADD_ONS[aid]
+        if a["billing"] == "annual_per_acre":
+            line = round(acres * a["rate_per_acre"], 2)
+            addons_annual += line
+            addons_lines.append({**a, "annual_amount": line})
+        elif a["billing"] == "annual_flat":
+            line = float(a["rate_flat_annual"])
+            addons_annual += line
+            addons_lines.append({**a, "annual_amount": line})
+        else:
+            # Revshare add-ons don't add a fixed amount — recognized when carbon credits sell.
+            addons_lines.append({**a, "annual_amount": 0.0})
+
+    annual_total = round(annual_base + addons_annual, 2)
+    subscription_total = round(annual_total * years, 2)
+    base_subscription_total = round(annual_base * years, 2)
+
+    impl = _implementation_fee(acres)
+    contract_total = round(subscription_total + impl["amount"], 2)
+
     market_total = round(acres * MARKET_RATE_USD_PER_ACRE * years, 2)
-    savings = round(market_total - contract_total, 2)
+    savings = round(market_total - base_subscription_total, 2)
+    enterprise = acres > ENTERPRISE_THRESHOLD_ACRES
+
     return {
         "acres": acres,
         "years": years,
         "term_name": term["name"],
         "tagline": term["tagline"],
         "annual_per_acre": annual_per_acre,
+        "annual_base": annual_base,
+        "addons_annual": round(addons_annual, 2),
         "annual_total": annual_total,
+        "subscription_total": subscription_total,
+        "implementation_fee_tier": impl["tier"],
+        "implementation_fee": impl["amount"],
         "contract_total": contract_total,
         "market_total": market_total,
         "savings": savings,
         "discount_pct": term["discount_pct"],
         "currency": "usd",
+        "enterprise": enterprise,
+        "add_ons": addons_lines,
     }
 
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
@@ -392,6 +476,7 @@ class CheckoutCreate(BaseModel):
     acres: int = Field(ge=MIN_ACRES, le=MAX_ACRES)
     years: int = Field(description="Contract length: 1, 3, 5, or 10")
     origin_url: str
+    add_ons: Optional[List[str]] = None
     customer_email: Optional[EmailStr] = None
     customer_name: Optional[str] = Field(default=None, max_length=120)
 
@@ -399,6 +484,16 @@ class CheckoutCreate(BaseModel):
 class QuoteRequest(BaseModel):
     acres: int = Field(ge=MIN_ACRES, le=MAX_ACRES)
     years: int
+    add_ons: Optional[List[str]] = None
+
+
+class EnterpriseInquiry(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    organization: str = Field(min_length=1, max_length=200)
+    acres: int = Field(ge=ENTERPRISE_THRESHOLD_ACRES, le=MAX_ACRES)
+    timeline: Optional[str] = Field(default=None, max_length=80)
+    message: Optional[str] = Field(default=None, max_length=2000)
 
 
 @api_router.get("/pricing")
@@ -407,7 +502,7 @@ async def pricing():
     mode = "live" if "live" in key else "sandbox"
     return {
         "mode": mode,
-        "model": "per_acre_annual",
+        "model": "per_acre_annual_plus_implementation_and_addons",
         "currency": "usd",
         "market_rate_per_acre": MARKET_RATE_USD_PER_ACRE,
         "base_rate_per_acre": BASE_RATE_USD_PER_ACRE,
@@ -416,6 +511,7 @@ async def pricing():
         ),
         "min_acres": MIN_ACRES,
         "max_acres": MAX_ACRES,
+        "enterprise_threshold_acres": ENTERPRISE_THRESHOLD_ACRES,
         "terms": [
             {
                 "years": yrs,
@@ -426,27 +522,49 @@ async def pricing():
             }
             for yrs, t in CONTRACT_TERMS.items()
         ],
+        "add_ons": [
+            {
+                "id": a["id"],
+                "name": a["name"],
+                "desc": a["desc"],
+                "billing": a["billing"],
+                "rate_per_acre": a.get("rate_per_acre"),
+                "rate_flat_annual": a.get("rate_flat_annual"),
+                "rate_revshare_pct": a.get("rate_revshare_pct"),
+            }
+            for a in ADD_ONS.values()
+        ],
     }
 
 
 @api_router.post("/pricing/quote")
 async def pricing_quote(payload: QuoteRequest):
-    return _quote(payload.acres, payload.years)
+    return _quote(payload.acres, payload.years, payload.add_ons)
 
 
 @api_router.post("/checkout/session")
 async def create_checkout(payload: CheckoutCreate, request: Request):
-    quote = _quote(payload.acres, payload.years)
+    quote = _quote(payload.acres, payload.years, payload.add_ons)
+
+    if quote["enterprise"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Acreage above 50,000 — please submit an enterprise inquiry.",
+        )
 
     origin = payload.origin_url.rstrip("/")
     success_url = f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/payment/cancel"
 
+    addon_ids = ",".join([a["id"] for a in quote["add_ons"] if quote["add_ons"]])
     metadata = {
         "acres": str(quote["acres"]),
         "years": str(quote["years"]),
         "term_name": quote["term_name"],
         "annual_per_acre": str(quote["annual_per_acre"]),
+        "implementation_fee": str(quote["implementation_fee"]),
+        "implementation_tier": quote["implementation_fee_tier"],
+        "add_ons": addon_ids,
         "savings_vs_market": str(quote["savings"]),
         "source": "landing_per_acre",
     }
@@ -474,6 +592,7 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
         "years": quote["years"],
         "annual_per_acre": quote["annual_per_acre"],
         "annual_total": quote["annual_total"],
+        "implementation_fee": quote["implementation_fee"],
         "savings_vs_market": quote["savings"],
         "amount": float(quote["contract_total"]),
         "currency": quote["currency"],
@@ -488,6 +607,44 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
     await db.payment_transactions.insert_one(txn)
 
     return {"url": session.url, "session_id": session.session_id, "quote": quote}
+
+
+@api_router.post("/enterprise/inquiry", status_code=201)
+async def enterprise_inquiry(payload: EnterpriseInquiry):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "name": payload.name,
+        "email": payload.email.lower(),
+        "organization": payload.organization,
+        "acres": payload.acres,
+        "timeline": payload.timeline,
+        "message": payload.message,
+        "status": "new",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.enterprise_inquiries.insert_one(doc)
+
+    # Notify owner via Gmail (no-op if creds not configured).
+    try:
+        body = (
+            f"Enterprise inquiry — {payload.acres:,} acres\n"
+            f"--------------------------------------------\n"
+            f"Name:         {payload.name}\n"
+            f"Email:        {payload.email}\n"
+            f"Organization: {payload.organization}\n"
+            f"Acres:        {payload.acres:,}\n"
+            f"Timeline:     {payload.timeline or '—'}\n"
+            f"Message:\n{payload.message or '—'}\n"
+            f"\nReceived: {doc['created_at']}\n"
+        )
+        gmail_notifier.send_notification(
+            subject=f"[A1A1 AQAS] Enterprise inquiry — {payload.acres:,} ac — {payload.organization}",
+            body=body,
+        )
+    except Exception as e:
+        logger.warning("Enterprise inquiry notification failed: %s", e)
+
+    return {"id": doc["id"], "status": "received"}
 
 
 async def _finalize_payment(session_id: str, request: Request) -> Dict[str, Any]:

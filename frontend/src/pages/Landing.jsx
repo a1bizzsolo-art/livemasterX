@@ -8,6 +8,8 @@ import Ariah from "../components/landing/Ariah";
 import LiveField from "../components/landing/LiveField";
 import Copernicus from "../components/landing/Copernicus";
 import Outcomes from "../components/landing/Outcomes";
+import Prostack from "../components/landing/Prostack";
+import RevenueStack from "../components/landing/RevenueStack";
 import Pricing from "../components/landing/Pricing";
 import Roadmap from "../components/landing/Roadmap";
 import Waitlist from "../components/landing/Waitlist";
@@ -51,6 +53,8 @@ export default function Landing() {
       <LiveField api={API} />
       <Copernicus />
       <Outcomes />
+      <Prostack />
+      <RevenueStack />
       <Pricing api={API} />
       <Roadmap />
       <Waitlist api={API} onJoined={refreshStats} stats={stats} />

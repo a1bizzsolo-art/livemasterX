@@ -43,10 +43,10 @@ export default function Nav() {
           <nav className="hidden md:flex items-center gap-1 text-xs uppercase tracking-[0.2em] text-slate-400">
             {[
               ["systems", "Systems"],
-              ["ariah", "Ariah"],
               ["live", "Live Feed"],
               ["copernicus", "Copernicus"],
-              ["outcomes", "Efficiency"],
+              ["prostack", "Prostack"],
+              ["revenue-stack", "Revenue"],
               ["pricing", "Pricing"],
             ].map(([id, label]) => (
               <button

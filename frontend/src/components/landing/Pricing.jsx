@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { Check, ArrowRight, Loader2, TrendingDown, Lock, Satellite } from "lucide-react";
+import { Check, ArrowRight, Loader2, TrendingDown, Lock, Satellite, Plus } from "lucide-react";
+import EnterpriseInquiry from "./EnterpriseInquiry";
 
 const TERM_FEATURES = {
   1:  ["Cancel after season", "Standard satellite cadence", "Email + dashboard alerts"],
-  3:  ["10% discount locked", "Priority satellite cadence", "Quarterly ops review", "Ariah outreach hooks"],
-  5:  ["18% discount locked", "Daily Copernicus pass priority", "Dedicated agent quorum", "Custom KPI dashboards", "Annual on-site briefing"],
-  10: ["28% discount locked", "Full Copernicus + Sentinel-1 fusion", "Top-priority orbital tasking", "SLA 99.99%", "On-call ops engineer", "Co-development roadmap"],
+  3:  ["10% discount locked", "Priority satellite cadence", "Quarterly ops review"],
+  5:  ["18% discount locked", "Daily Copernicus pass priority", "Custom KPI dashboards", "Annual on-site briefing"],
+  10: ["28% discount locked", "Full Copernicus + Sentinel-1 fusion", "Top-priority orbital tasking", "SLA 99.99%", "Co-development roadmap"],
 };
 
 export default function Pricing({ api }) {
@@ -14,36 +15,50 @@ export default function Pricing({ api }) {
   const [stats, setStats] = useState({ count: 0, revenue: 0, currency: "USD", recent: [] });
   const [acres, setAcres] = useState(2500);
   const [years, setYears] = useState(5);
+  const [selectedAddons, setSelectedAddons] = useState([]);
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [quote, setQuote] = useState(null);
 
   useEffect(() => {
     axios.get(`${api}/pricing`).then((r) => setCfg(r.data)).catch(() => {});
     axios.get(`${api}/deals/stats`).then((r) => setStats(r.data)).catch(() => {});
   }, [api]);
 
-  const quote = useMemo(() => {
-    if (!cfg) return null;
-    const term = cfg.terms.find((t) => t.years === years) || cfg.terms[0];
-    const annualTotal = acres * term.rate_per_acre;
-    const contractTotal = annualTotal * years;
-    const marketTotal = acres * cfg.market_rate_per_acre * years;
-    const savings = marketTotal - contractTotal;
-    return {
-      term,
-      annualPerAcre: term.rate_per_acre,
-      annualTotal,
-      contractTotal,
-      marketTotal,
-      savings,
+  useEffect(() => {
+    if (!cfg) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      axios
+        .post(`${api}/pricing/quote`, { acres, years, add_ons: selectedAddons })
+        .then((r) => !cancelled && setQuote(r.data))
+        .catch(() => {});
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
     };
-  }, [cfg, acres, years]);
+  }, [api, cfg, acres, years, selectedAddons]);
+
+  const isEnterprise = useMemo(
+    () => acres > (cfg?.enterprise_threshold_acres ?? 50000),
+    [acres, cfg]
+  );
+
+  const toggleAddon = (id) => {
+    setSelectedAddons((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  };
 
   const handleCheckout = async () => {
-    if (submitting || !cfg) return;
+    if (submitting || !cfg || isEnterprise) return;
     setSubmitting(true);
     try {
-      const payload = { acres, years, origin_url: window.location.origin };
+      const payload = {
+        acres,
+        years,
+        origin_url: window.location.origin,
+        add_ons: selectedAddons,
+      };
       if (email.trim()) payload.customer_email = email.trim();
       const r = await axios.post(`${api}/checkout/session`, payload);
       if (r.data?.url) window.location.href = r.data.url;
@@ -53,13 +68,17 @@ export default function Pricing({ api }) {
     }
   };
 
-  const fmt = (n) => `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const fmt = (n) =>
+    `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  const addonsConfig = cfg?.add_ons || [];
+  const tcv = quote?.contract_total ?? 0;
 
   return (
     <section id="pricing" className="relative border-b border-slate-800">
       <div className="mx-auto max-w-[1400px] px-6 lg:px-10 py-16 lg:py-24">
         <div className="flex items-center gap-4">
-          <span className="font-mono text-xs text-amber-400">// 06</span>
+          <span className="font-mono text-xs text-amber-400">// 08</span>
           <span className="h-px flex-1 bg-slate-800" />
           <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">
             PRICING // PER ACRE // {cfg?.savings_pct_vs_market ?? "30"}% UNDER MARKET
@@ -87,20 +106,19 @@ export default function Pricing({ api }) {
           </div>
         </div>
 
-        {/* Market comparison strip */}
+        {/* Market comparison */}
         <div className="mt-10 grid grid-cols-3 border border-slate-800">
           <Strip k="Market avg" v={`$${cfg?.market_rate_per_acre ?? "6.00"}`} sub="/ acre / year" tone="text-slate-300" />
           <Strip k="A1A1 (AQAS) list" v={`$${cfg?.base_rate_per_acre ?? "4.20"}`} sub="/ acre / year • 1y" tone="text-amber-400" />
           <Strip k="10-year locked" v={`$${cfg?.terms?.[3]?.rate_per_acre ?? "3.02"}`} sub="/ acre / year • 10y" tone="text-emerald-400" />
         </div>
 
-        {/* Calculator */}
+        {/* Configurator */}
         <div className="mt-10 grid lg:grid-cols-12 gap-0 border border-slate-800 bg-[#0c0e12]">
           {/* Left — inputs */}
-          <div className="lg:col-span-5 p-7 lg:p-10 border-b lg:border-b-0 lg:border-r border-slate-800">
+          <div className="lg:col-span-5 p-7 lg:p-9 border-b lg:border-b-0 lg:border-r border-slate-800">
             <div className="text-[10px] uppercase tracking-[0.24em] text-amber-400">// CONFIGURE</div>
 
-            {/* Acreage */}
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Acreage</label>
@@ -118,18 +136,17 @@ export default function Pricing({ api }) {
                 data-testid="acres-slider"
                 type="range"
                 min={100}
-                max={50000}
-                step={50}
-                value={Math.min(50000, acres)}
+                max={75000}
+                step={100}
+                value={Math.min(75000, acres)}
                 onChange={(e) => setAcres(Number(e.target.value))}
                 className="w-full accent-amber-500"
               />
               <div className="flex justify-between text-[10px] font-mono text-slate-500 mt-1">
-                <span>100</span><span>10k</span><span>50k+</span>
+                <span>100</span><span>10k</span><span>50k</span><span>75k+</span>
               </div>
             </div>
 
-            {/* Term */}
             <div className="mt-8">
               <label className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Contract length</label>
               <div className="mt-3 grid grid-cols-4 gap-0 border border-slate-800">
@@ -152,14 +169,44 @@ export default function Pricing({ api }) {
                   );
                 })}
               </div>
-              {quote?.term && (
+              {quote?.term_name && (
                 <div className="mt-3 text-[11px] font-mono text-slate-400">
-                  <span className="text-amber-400">{quote.term.name}</span> — {quote.term.tagline}
+                  <span className="text-amber-400">{quote.term_name}</span> — {quote.tagline}
                 </div>
               )}
             </div>
 
-            {/* Email */}
+            {/* Add-ons */}
+            <div className="mt-8">
+              <label className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Add-ons</label>
+              <div className="mt-3 space-y-2">
+                {addonsConfig.map((a) => {
+                  const on = selectedAddons.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      data-testid={`addon-${a.id}`}
+                      type="button"
+                      onClick={() => toggleAddon(a.id)}
+                      className={`w-full text-left border ${on ? "border-amber-500/60 bg-amber-500/[0.06]" : "border-slate-800 hover:border-slate-600"} px-3 py-2.5 transition-colors`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[11px] font-display font-bold uppercase tracking-tight ${on ? "text-amber-400" : "text-white"}`}>
+                          {a.name}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          {a.billing === "annual_per_acre" && `$${a.rate_per_acre}/ac/yr`}
+                          {a.billing === "annual_flat" && `${fmt(a.rate_flat_annual)}/yr`}
+                          {a.billing === "revshare" && `${a.rate_revshare_pct}% revshare`}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[10px] text-slate-500 leading-relaxed">{a.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="mt-8">
               <label className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Contact email (optional)</label>
               <input
@@ -174,75 +221,83 @@ export default function Pricing({ api }) {
           </div>
 
           {/* Right — quote */}
-          <div className="lg:col-span-7 p-7 lg:p-10">
-            <div className="text-[10px] uppercase tracking-[0.24em] text-amber-400">// QUOTE</div>
+          <div className="lg:col-span-7 p-7 lg:p-9">
+            {isEnterprise ? (
+              <EnterpriseInquiry api={api} acres={acres} onSubmitted={() => {}} />
+            ) : (
+              <>
+                {/* TCV is the hero number */}
+                <div className="text-[10px] uppercase tracking-[0.24em] text-amber-400">
+                  // TOTAL CONTRACT VALUE
+                </div>
+                <div data-testid="tcv-hero" className="mt-2 font-display text-5xl lg:text-7xl font-black tracking-tighter text-amber-400">
+                  {fmt(tcv)}
+                </div>
+                <div className="mt-1 text-[11px] font-mono text-slate-500">
+                  {acres.toLocaleString()} acres · {years} year{years > 1 ? "s" : ""} · {quote?.term_name || ""}
+                </div>
 
-            <div className="mt-6 grid grid-cols-2 border border-slate-800">
-              <QuoteCell k="Per acre / year" v={quote ? `$${quote.annualPerAcre.toFixed(2)}` : "—"} sub={`${years}-year term`} />
-              <QuoteCell k="Annual cost" v={quote ? fmt(quote.annualTotal) : "—"} sub={`${acres.toLocaleString()} acres`} />
-              <QuoteCell
-                k="Contract total"
-                v={quote ? fmt(quote.contractTotal) : "—"}
-                sub={`over ${years} year${years > 1 ? "s" : ""}`}
-                large
-                tone="text-amber-400"
-                testid="quote-contract-total"
-              />
-              <QuoteCell
-                k="Savings vs market"
-                v={quote ? `−${fmt(quote.savings)}` : "—"}
-                sub={`@ $${cfg?.market_rate_per_acre ?? 6}/acre baseline`}
-                large
-                tone="text-emerald-400"
-                testid="quote-savings"
-              />
-            </div>
+                {/* Breakdown */}
+                <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 border border-slate-800">
+                  <QuoteCell k="Per acre / yr" v={quote ? `$${quote.annual_per_acre.toFixed(2)}` : "—"} sub={`${years}-yr term`} />
+                  <QuoteCell k="Annual" v={quote ? fmt(quote.annual_total) : "—"} sub="base + add-ons" />
+                  <QuoteCell k="Onboarding" v={quote ? fmt(quote.implementation_fee) : "—"} sub={quote?.implementation_fee_tier || ""} />
+                  <QuoteCell
+                    k="Savings vs market"
+                    v={quote ? `−${fmt(quote.savings)}` : "—"}
+                    sub={`@ $${cfg?.market_rate_per_acre ?? 6}/acre`}
+                    tone="text-emerald-400"
+                    testid="quote-savings"
+                  />
+                </div>
 
-            {/* What's included */}
-            <div className="mt-6 border border-slate-800">
-              <div className="px-4 py-2.5 border-b border-slate-800 bg-black/40 text-[10px] uppercase tracking-[0.24em] text-slate-500">
-                Included at this term
-              </div>
-              <ul className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  "Copernicus Sentinel-2 NDVI overlays",
-                  "Soil moisture + ET telemetry (live)",
-                  "AQAS daily ops briefings",
-                  "Multi-channel alerts (email + SMS)",
-                  ...(TERM_FEATURES[years] || []),
-                ].map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-xs text-slate-300">
-                    <Check className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                {/* What's included */}
+                <div className="mt-6 border border-slate-800">
+                  <div className="px-4 py-2.5 border-b border-slate-800 bg-black/40 text-[10px] uppercase tracking-[0.24em] text-slate-500">
+                    Included at this term
+                  </div>
+                  <ul className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      "Copernicus Sentinel-2 NDVI overlays",
+                      "Soil moisture + ET telemetry (live)",
+                      "AQAS daily ops briefings",
+                      "Multi-channel alerts (email + SMS)",
+                      ...(TERM_FEATURES[years] || []),
+                    ].map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-xs text-slate-300">
+                        <Check className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
 
-            <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500 flex items-center gap-2">
-                <Lock className="h-3 w-3 text-amber-400" />
-                Rate locked for full term • {cfg?.mode === "live" ? <span className="text-red-400">LIVE PAYMENTS</span> : <span className="text-emerald-400">SANDBOX</span>}
-              </div>
-              <button
-                data-testid="checkout-cta"
-                onClick={handleCheckout}
-                disabled={submitting}
-                className="group inline-flex items-center justify-center gap-2 bg-amber-500 px-6 py-4 text-xs font-bold uppercase tracking-[0.22em] text-black hover:bg-amber-400 disabled:opacity-60 transition-colors w-full sm:w-auto"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Routing to Stripe…
-                  </>
-                ) : (
-                  <>
-                    Activate {quote?.term?.name || ""} — {quote ? fmt(quote.contractTotal) : ""}
-                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                  </>
-                )}
-              </button>
-            </div>
+                <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500 flex items-center gap-2">
+                    <Lock className="h-3 w-3 text-amber-400" />
+                    Rate locked for full term • {cfg?.mode === "live" ? <span className="text-red-400">LIVE PAYMENTS</span> : <span className="text-emerald-400">SANDBOX</span>}
+                  </div>
+                  <button
+                    data-testid="checkout-cta"
+                    onClick={handleCheckout}
+                    disabled={submitting}
+                    className="group inline-flex items-center justify-center gap-2 bg-amber-500 px-6 py-4 text-xs font-bold uppercase tracking-[0.22em] text-black hover:bg-amber-400 disabled:opacity-60 transition-colors w-full sm:w-auto"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Routing to Stripe…
+                      </>
+                    ) : (
+                      <>
+                        Activate {quote?.term_name || ""} — {fmt(tcv)}
+                        <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -254,7 +309,7 @@ export default function Pricing({ api }) {
               <button
                 key={t.years}
                 onClick={() => setYears(t.years)}
-                className={`text-left p-5 border-b border-r border-slate-800 ${i === 1 ? "" : ""} ${i >= 2 ? "lg:border-b-0" : "lg:border-b-0"} ${(i + 1) % 2 === 0 ? "border-r-0 lg:border-r" : ""} ${i === 3 ? "lg:border-r-0" : ""} transition-colors ${
+                className={`text-left p-5 border-b border-r border-slate-800 ${(i + 1) % 2 === 0 ? "border-r-0 lg:border-r" : ""} ${i === 3 ? "lg:border-r-0" : ""} ${i >= 2 ? "lg:border-b-0" : "lg:border-b-0"} transition-colors ${
                   active ? "bg-amber-500/10" : "hover:bg-slate-900/40"
                 }`}
               >
@@ -276,7 +331,7 @@ export default function Pricing({ api }) {
           })}
         </div>
 
-        {/* Powered by Copernicus banner */}
+        {/* Powered by Copernicus */}
         <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border border-slate-800 bg-[#0c0e12] px-6 py-5">
           <div className="flex items-center gap-3">
             <Satellite className="h-4 w-4 text-amber-400" />
@@ -320,11 +375,14 @@ function Strip({ k, v, sub, tone = "text-white" }) {
   );
 }
 
-function QuoteCell({ k, v, sub, large, tone = "text-white", testid }) {
+function QuoteCell({ k, v, sub, tone = "text-white", testid }) {
   return (
-    <div data-testid={testid} className="px-5 py-4 border-r [&:nth-child(2n)]:border-r-0 border-b [&:nth-child(n+3)]:border-b-0 border-slate-800">
+    <div
+      data-testid={testid}
+      className="px-5 py-4 border-r border-b last:border-r-0 [&:nth-last-child(-n+2)]:border-b-0 lg:[&:nth-last-child(-n+4)]:border-b-0 border-slate-800"
+    >
       <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{k}</div>
-      <div className={`mt-1.5 font-display font-black tracking-tighter ${large ? "text-3xl lg:text-4xl" : "text-xl lg:text-2xl"} ${tone}`}>{v}</div>
+      <div className={`mt-1 font-display text-xl lg:text-2xl font-black tracking-tighter ${tone}`}>{v}</div>
       <div className="text-[10px] font-mono text-slate-500 mt-1">{sub}</div>
     </div>
   );
