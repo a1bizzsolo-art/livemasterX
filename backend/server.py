@@ -477,6 +477,7 @@ class CheckoutCreate(BaseModel):
     years: int = Field(description="Contract length: 1, 3, 5, or 10")
     origin_url: str
     add_ons: Optional[List[str]] = None
+    referral_code: Optional[str] = None
     customer_email: Optional[EmailStr] = None
     customer_name: Optional[str] = Field(default=None, max_length=120)
 
@@ -552,6 +553,18 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
             detail="Acreage above 50,000 — please submit an enterprise inquiry.",
         )
 
+    # Apply referral discount (10% off contract) if valid.
+    referral_doc = None
+    referral_discount = 0.0
+    if payload.referral_code:
+        referral_doc = await db.referral_codes.find_one(
+            {"code": payload.referral_code.upper()}, {"_id": 0}
+        )
+        if referral_doc:
+            referral_discount = round(quote["contract_total"] * 0.10, 2)
+
+    final_amount = round(quote["contract_total"] - referral_discount, 2)
+
     origin = payload.origin_url.rstrip("/")
     success_url = f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/payment/cancel"
@@ -568,6 +581,9 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
         "savings_vs_market": str(quote["savings"]),
         "source": "landing_per_acre",
     }
+    if referral_doc:
+        metadata["referral_code"] = referral_doc["code"]
+        metadata["referral_discount"] = str(referral_discount)
     if payload.customer_email:
         metadata["customer_email"] = str(payload.customer_email)
     if payload.customer_name:
@@ -575,7 +591,7 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
 
     stripe = _stripe_client(request)
     req = CheckoutSessionRequest(
-        amount=float(quote["contract_total"]),
+        amount=float(final_amount),
         currency=quote["currency"],
         success_url=success_url,
         cancel_url=cancel_url,
@@ -594,7 +610,9 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
         "annual_total": quote["annual_total"],
         "implementation_fee": quote["implementation_fee"],
         "savings_vs_market": quote["savings"],
-        "amount": float(quote["contract_total"]),
+        "referral_code": referral_doc["code"] if referral_doc else None,
+        "referral_discount": referral_discount,
+        "amount": float(final_amount),
         "currency": quote["currency"],
         "customer_email": str(payload.customer_email).lower() if payload.customer_email else None,
         "customer_name": payload.customer_name,
@@ -606,7 +624,13 @@ async def create_checkout(payload: CheckoutCreate, request: Request):
     }
     await db.payment_transactions.insert_one(txn)
 
-    return {"url": session.url, "session_id": session.session_id, "quote": quote}
+    return {
+        "url": session.url,
+        "session_id": session.session_id,
+        "quote": quote,
+        "referral_discount": referral_discount,
+        "final_amount": final_amount,
+    }
 
 
 @api_router.post("/enterprise/inquiry", status_code=201)
@@ -694,19 +718,34 @@ async def _finalize_payment(session_id: str, request: Request) -> Dict[str, Any]
     if checkout_status.payment_status == "paid":
         existing = await db.closed_deals.find_one({"session_id": session_id}, {"_id": 0})
         if not existing:
+            paid_amount = checkout_status.amount_total / 100.0 if checkout_status.amount_total else txn.get("amount")
+            referral_code_used = txn.get("referral_code")
             deal = {
                 "id": str(uuid.uuid4()),
                 "session_id": session_id,
                 "tier_id": txn.get("tier_id"),
                 "tier_name": txn.get("tier_name"),
-                "amount": checkout_status.amount_total / 100.0 if checkout_status.amount_total else txn.get("amount"),
+                "amount": paid_amount,
                 "currency": (checkout_status.currency or txn.get("currency")).lower(),
                 "customer_email": txn.get("customer_email"),
                 "customer_name": txn.get("customer_name"),
+                "referral_code": referral_code_used,
                 "metadata": checkout_status.metadata or txn.get("metadata", {}),
                 "closed_at": now_iso,
             }
             await db.closed_deals.insert_one(deal)
+
+            # Credit referrer for any future kickback payout.
+            if referral_code_used:
+                kickback = round(paid_amount * 0.10, 2)
+                await db.referral_codes.update_one(
+                    {"code": referral_code_used},
+                    {
+                        "$inc": {"redemptions": 1, "credits_earned_usd": kickback},
+                        "$set": {"last_redeemed_at": now_iso},
+                    },
+                )
+
             _notify_closed_deal(deal)
 
     return response
@@ -794,6 +833,72 @@ async def deals_stats():
         "currency": "USD",
         "recent": last_deals,
         "gmail_notifications": "configured" if gmail_notifier.is_configured() else "pending_credentials",
+    }
+
+
+# ---------- Social proof + Referral System ----------
+class ReferralRequest(BaseModel):
+    email: EmailStr
+    name: Optional[str] = Field(default=None, max_length=120)
+
+
+def _code_from_email(email: str) -> str:
+    """Deterministic 8-char code derived from email — no DB lookup to validate."""
+    import hashlib
+    h = hashlib.sha256(email.lower().encode("utf-8")).hexdigest().upper()
+    return "AQAS-" + h[:6]
+
+
+@api_router.post("/referral/code")
+async def referral_code(payload: ReferralRequest):
+    code = _code_from_email(payload.email)
+    doc = {
+        "code": code,
+        "email": payload.email.lower(),
+        "name": payload.name,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "redemptions": 0,
+        "credits_earned_usd": 0.0,
+    }
+    await db.referral_codes.update_one(
+        {"code": code},
+        {"$setOnInsert": doc},
+        upsert=True,
+    )
+    return {
+        "code": code,
+        "share_url_suffix": f"?ref={code}",
+        "discount_pct_for_buyer": 10,
+        "kickback_pct_for_referrer": 10,
+        "message": "Share your code. Buyers get 10% off. You earn 10% back on every deal.",
+    }
+
+
+@api_router.get("/referral/{code}")
+async def referral_lookup(code: str):
+    doc = await db.referral_codes.find_one({"code": code.upper()}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Unknown referral code.")
+    return doc
+
+
+@api_router.get("/social-proof")
+async def social_proof():
+    """Public activity feed for urgency banner — combines deals + waitlist."""
+    deals_count = await db.closed_deals.count_documents({})
+    waitlist_count = await db.waitlist.count_documents({})
+    # Recent activity in last 24h
+    from datetime import timedelta
+    since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    deals_24h = await db.closed_deals.count_documents({"closed_at": {"$gte": since}})
+    waitlist_24h = await db.waitlist.count_documents({"created_at": {"$gte": since}})
+
+    return {
+        "deals_total": deals_count,
+        "waitlist_total": waitlist_count,
+        "deals_24h": deals_24h,
+        "waitlist_24h": waitlist_24h,
+        "agents_online": 10000 + (waitlist_count * 3),
     }
 
 
