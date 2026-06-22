@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A1AI — Quantum IrrigationOS | My Agents Don't Sleep</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --black:   #080C08;
+    --soil:    #0D150D;
+    --earth:   #111A11;
+    --canopy:  #172317;
+    --green:   #1A3A1A;
+    --signal:  #22C55E;
+    --pulse:   #4ADE80;
+    --gold:    #F59E0B;
+    --amber:   #D97706;
+    --alert:   #EF4444;
+    --sky:     #38BDF8;
+    --white:   #F8FFF8;
+    --mist:    #9CA3AF;
+    --fog:     #6B7280;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'Space Grotesk', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ── TICKER ── */
+  .ticker-wrap {
+    background: var(--earth);
+    border-bottom: 1px solid #1A3A1A;
+    padding: 8px 0;
+    overflow: hidden;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+  }
+  .ticker-inner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-left: 16px;
+  }
+  .ticker-live {
+    background: var(--signal);
+    color: var(--black);
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: 1.5px;
+    flex-shrink: 0;
+    animation: livepulse 2s ease-in-out infinite;
+  }
+  @keyframes livepulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  .ticker-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--mist);
+    white-space: nowrap;
+    animation: scroll 40s linear infinite;
+  }
+  @keyframes scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 33px; left: 0; right: 0;
+    z-index: 99;
+    background: rgba(8, 12, 8, 0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #1A3A1A;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .nav-logo {
+    background: var(--signal);
+    color: var(--black);
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  .nav-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--white);
+  }
+  .nav-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--signal);
+    letter-spacing: 2px;
+  }
+  .nav-cta {
+    background: var(--gold);
+    color: var(--black);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 8px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .nav-cta:hover { background: #FBBF24; transform: translateY(-1px); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    padding: 140px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Satellite grid background */
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(rgba(34, 197, 94, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 197, 94, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 0;
+  }
+
+  /* Glow orb */
+  .hero::after {
+    content: '';
+    position: absolute;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(34, 197, 94, 0.08) 0%, transparent 70%);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .hero-content { position: relative; z-index: 1; max-width: 900px; }
+
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    border-radius: 100px;
+    padding: 6px 16px;
+    margin-bottom: 32px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--signal);
+    letter-spacing: 1.5px;
+  }
+  .hero-eyebrow-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--signal);
+    animation: livepulse 1.5s ease-in-out infinite;
+  }
+
+  .hero-h1 {
+    font-size: clamp(40px, 8vw, 88px);
+    font-weight: 700;
+    line-height: 1.0;
+    letter-spacing: -2px;
+    margin-bottom: 8px;
+    color: var(--white);
+  }
+  .hero-h1 .gold { color: var(--gold); }
+  .hero-h1 .green { color: var(--signal); }
+
+  .hero-tagline {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(16px, 3vw, 24px);
+    color: var(--signal);
+    letter-spacing: 2px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  .hero-sub {
+    font-size: clamp(15px, 2vw, 19px);
+    color: var(--mist);
+    line-height: 1.7;
+    max-width: 640px;
+    margin: 0 auto 48px;
+  }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin-bottom: 56px;
+  }
+  .stat-item {
+    padding: 16px 32px;
+    border-right: 1px solid #1A3A1A;
+    text-align: center;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(24px, 4vw, 36px);
+    font-weight: 700;
+    color: var(--signal);
+    display: block;
+  }
+  .stat-val.gold { color: var(--gold); }
+  .stat-label {
+    font-size: 11px;
+    color: var(--fog);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    display: block;
+    margin-top: 4px;
+  }
+
+  /* ── WAITLIST FORM ── */
+  .waitlist-box {
+    background: var(--earth);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 560px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+  .waitlist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .waitlist-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--white);
+  }
+  .spots-badge {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: var(--alert);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.5px;
+    animation: livepulse 2s ease-in-out infinite;
+  }
+  .waitlist-sub {
+    color: var(--fog);
+    font-size: 13px;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+  .waitlist-sub strong { color: var(--gold); }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .form-full { grid-column: 1 / -1; }
+
+  .form-input {
+    width: 100%;
+    background: var(--soil);
+    border: 1px solid #1A3A1A;
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: var(--white);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus { border-color: var(--signal); }
+  .form-input::placeholder { color: var(--fog); }
+
+  select.form-input option { background: var(--soil); }
+
+  .form-submit {
+    width: 100%;
+    background: var(--signal);
+    color: var(--black);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .form-submit:hover { background: var(--pulse); transform: translateY(-1px); }
+
+  .form-disclaimer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--fog);
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  .form-success {
+    display: none;
+    text-align: center;
+    padding: 24px;
+  }
+  .form-success.show { display: block; }
+  .success-icon { font-size: 48px; margin-bottom: 12px; }
+  .success-title { font-size: 20px; font-weight: 700; color: var(--signal); margin-bottom: 8px; }
+  .success-sub { color: var(--mist); font-size: 14px; line-height: 1.6; }
+
+  /* ── SATELLITE VISUAL ── */
+  .satellite-section {
+    padding: 80px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .section-eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--signal);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .section-h2 {
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+  }
+  .section-h2 .gold { color: var(--gold); }
+  .section-h2 .green { color: var(--signal); }
+  .section-sub {
+    color: var(--mist);
+    font-size: 16px;
+    line-height: 1.7;
+    max-width: 560px;
+    margin-bottom: 40px;
+  }
+
+  /* Satellite map mock */
+  .sat-map {
+    background: linear-gradient(135deg, #0A2010 0%, #0F3018 25%, #142A10 50%, #1A3A14 75%, #0D2810 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(34, 197, 94, 0.15);
+    height: 320px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .sat-header {
+    position: absolute;
+    top: 16px; left: 16px; right: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 2;
+  }
+  .sat-label {
+    background: rgba(8, 12, 8, 0.8);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--signal);
+    letter-spacing: 1px;
+  }
+  .sat-grid {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    opacity: 0.4;
+  }
+  .sat-cell { border: 0.5px solid rgba(34, 197, 94, 0.08); }
+  .sat-cell.high { background: rgba(34, 197, 94, 0.35); }
+  .sat-cell.med  { background: rgba(245, 158, 11, 0.25); }
+  .sat-cell.low  { background: rgba(239, 68, 68, 0.3); }
+
+  .sat-coords {
+    position: absolute;
+    bottom: 16px; left: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--signal);
+  }
+  .sat-ndvi {
+    position: absolute;
+    bottom: 16px; right: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--signal);
+  }
+
+  /* Radar pulse */
+  .radar-pulse {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    animation: radarPulse 3s ease-out infinite;
+  }
+  .radar-pulse:nth-child(2) { animation-delay: 1s; }
+  .radar-pulse:nth-child(3) { animation-delay: 2s; }
+  @keyframes radarPulse {
+    0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; }
+    100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+  }
+
+  .sat-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .sat-metric {
+    background: var(--earth);
+    border: 1px solid #1A3A1A;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .sat-metric-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--signal);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .sat-metric-val.warn { color: var(--gold); }
+  .sat-metric-val.alert { color: var(--alert); }
+  .sat-metric-label { font-size: 11px; color: var(--fog); text-transform: uppercase; letter-spacing: 1px; display: block; }
+  .sat-metric-sub { font-size: 11px; color: var(--mist); display: block; margin-top: 2px; }
+
+  /* ── AGENTS ── */
+  .agents-section {
+    padding: 80px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .agents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-top: 40px;
+  }
+  .agent-card {
+    background: var(--earth);
+    border-radius: 14px;
+    padding: 24px;
+    border: 1px solid #1A3A1A;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .agent-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .agent-card.ariah::before  { background: var(--gold); }
+  .agent-card.orion::before  { background: var(--sky); }
+  .agent-card.aqas::before   { background: var(--signal); }
+  .agent-card.pluto::before  { background: #A78BFA; }
+  .agent-card:hover { transform: translateY(-4px); border-color: rgba(34, 197, 94, 0.3); }
+
+  .agent-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .agent-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .agent-name.ariah { color: var(--gold); }
+  .agent-name.orion { color: var(--sky); }
+  .agent-name.aqas  { color: var(--signal); }
+  .agent-name.pluto { color: #A78BFA; }
+  .agent-role {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--fog);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: block;
+  }
+  .agent-desc { font-size: 14px; color: var(--mist); line-height: 1.6; margin-bottom: 16px; }
+  .agent-feature {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--fog);
+    padding: 6px 0;
+    border-top: 1px solid #1A3A1A;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .agent-feature::before { content: '→'; color: var(--signal); }
+
+  /* ── PRICING ── */
+  .pricing-section {
+    padding: 80px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 48px;
+    text-align: left;
+  }
+  .pricing-card {
+    background: var(--earth);
+    border: 1px solid #1A3A1A;
+    border-radius: 16px;
+    padding: 32px;
+    position: relative;
+  }
+  .pricing-card.featured {
+    border-color: var(--signal);
+    background: var(--canopy);
+    box-shadow: 0 0 40px rgba(34, 197, 94, 0.08);
+  }
+  .featured-badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--gold);
+    color: var(--black);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 100px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .pricing-tier {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fog);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+  .pricing-price {
+    font-family: 'Space Mono', monospace;
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .pricing-price span { font-size: 16px; color: var(--fog); }
+  .pricing-acre {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    color: var(--signal);
+    margin-bottom: 8px;
+  }
+  .pricing-note {
+    font-size: 12px;
+    color: var(--fog);
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #1A3A1A;
+  }
+  .pricing-feature {
+    font-size: 14px;
+    color: var(--mist);
+    padding: 8px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-bottom: 1px solid rgba(26, 58, 26, 0.5);
+    line-height: 1.4;
+  }
+  .pricing-feature .check { color: var(--signal); flex-shrink: 0; margin-top: 1px; }
+  .pricing-cta {
+    display: block;
+    text-align: center;
+    margin-top: 24px;
+    padding: 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: none;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .pricing-cta.primary { background: var(--signal); color: var(--black); }
+  .pricing-cta.primary:hover { background: var(--pulse); }
+  .pricing-cta.secondary { background: transparent; color: var(--white); border: 1px solid #2D5A2D; }
+  .pricing-cta.secondary:hover { border-color: var(--signal); }
+
+  .savings-banner {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-top: 32px;
+    text-align: center;
+  }
+  .savings-banner strong { color: var(--gold); }
+  .savings-banner p { color: var(--mist); font-size: 14px; line-height: 1.6; }
+
+  /* ── WHY NOW ── */
+  .why-section {
+    padding: 80px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .why-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 40px;
+  }
+  .why-card {
+    background: var(--earth);
+    border-radius: 14px;
+    padding: 28px;
+    border-left: 3px solid var(--signal);
+  }
+  .why-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--signal);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .why-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; color: var(--white); }
+  .why-body { font-size: 14px; color: var(--mist); line-height: 1.7; }
+
+  /* ── MORNING BRIEF DEMO ── */
+  .brief-section {
+    padding: 80px 24px;
+    max-width: 700px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .brief-card {
+    background: var(--earth);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 16px;
+    padding: 28px;
+    text-align: left;
+    margin-top: 40px;
+  }
+  .brief-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #1A3A1A;
+    margin-bottom: 16px;
+  }
+  .brief-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--signal);
+    font-weight: 700;
+  }
+  .brief-time { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--fog); }
+  .brief-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(26, 58, 26, 0.5);
+  }
+  .brief-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+  .brief-dot.red    { background: var(--alert); box-shadow: 0 0 6px var(--alert); }
+  .brief-dot.yellow { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+  .brief-dot.green  { background: var(--signal); box-shadow: 0 0 6px var(--signal); }
+  .brief-dot.blue   { background: var(--sky); box-shadow: 0 0 6px var(--sky); }
+  .brief-agent { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--fog); margin-bottom: 3px; }
+  .brief-msg { font-size: 13px; color: var(--white); line-height: 1.5; }
+  .brief-footer {
+    margin-top: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--fog);
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* ── CONTACT ── */
+  .contact-section {
+    padding: 80px 24px;
+    max-width: 700px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .contact-card {
+    background: var(--earth);
+    border: 1px solid #1A3A1A;
+    border-radius: 16px;
+    padding: 40px;
+    margin-top: 32px;
+  }
+  .contact-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 4px;
+  }
+  .contact-title { font-size: 14px; color: var(--signal); margin-bottom: 24px; }
+  .contact-items { display: flex; flex-direction: column; gap: 12px; }
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--soil);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--mist);
+    text-decoration: none;
+    transition: all 0.2s;
+    border: 1px solid #1A3A1A;
+  }
+  .contact-item:hover { border-color: var(--signal); color: var(--white); }
+  .contact-icon { font-size: 16px; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--earth);
+    border-top: 1px solid #1A3A1A;
+    padding: 40px 24px;
+    text-align: center;
+  }
+  .footer-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .footer-tagline {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    color: var(--signal);
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+  .footer-copy { font-size: 12px; color: var(--fog); }
+  .footer-copy a { color: var(--signal); text-decoration: none; }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #1A3A1A, transparent);
+    margin: 0 24px;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    .form-row { grid-template-columns: 1fr; }
+    .stat-item { padding: 12px 20px; }
+    .nav-cta { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-inner">
+    <span class="ticker-live">LIVE</span>
+    <div style="overflow:hidden;flex:1">
+      <div class="ticker-text">
+        🛰️ Sentinel-2 pass complete — Central Valley CA scanned &nbsp;·&nbsp; 💧 AQAS: Soil moisture critical — Drylands West Sector 3 &nbsp;·&nbsp; 🐛 Pest pressure rising — aphid density 3x threshold Zone 4 &nbsp;·&nbsp; 📈 Almond futures +4.2% — Orion recommends contract lock &nbsp;·&nbsp; ⚡ Ariah dispatched irrigation crew — ETA 22 minutes &nbsp;·&nbsp; 🌤️ Rain forecast Friday — irrigation schedules adjusted autonomously &nbsp;·&nbsp; ✅ Corn Belt IA — yield projection on track, no action needed &nbsp;·&nbsp;
+        🛰️ Sentinel-2 pass complete — Central Valley CA scanned &nbsp;·&nbsp; 💧 AQAS: Soil moisture critical — Drylands West Sector 3 &nbsp;·&nbsp; 🐛 Pest pressure rising — aphid density 3x threshold Zone 4 &nbsp;·&nbsp; 📈 Almond futures +4.2% — Orion recommends contract lock &nbsp;·&nbsp; ⚡ Ariah dispatched irrigation crew — ETA 22 minutes &nbsp;·&nbsp; 🌤️ Rain forecast Friday — irrigation schedules adjusted autonomously &nbsp;·&nbsp; ✅ Corn Belt IA — yield projection on track, no action needed &nbsp;·&nbsp;
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">A1AI</div>
+    <div>
+      <div class="nav-name">Quantum IrrigationOS</div>
+      <div class="nav-sub">E.I.R TECHNOLOGY</div>
+    </div>
+  </div>
+  <a href="#waitlist" class="nav-cta">Claim Your Spot</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <span class="hero-eyebrow-dot"></span>
+      CORNUCOPIA SATELLITE INTELLIGENCE · LIVE
+    </div>
+
+    <h1 class="hero-h1">
+      My Agents<br>
+      <span class="green">Don't Sleep.</span>
+    </h1>
+
+    <div class="hero-tagline">10,000 AI Agents. Zero Blind Spots.</div>
+
+    <p class="hero-sub">
+      Satellite soil monitoring, AI irrigation control, pest radar, and four autonomous AI agents watching every acre — 24 hours a day. No sensors. No hardware. No guessing.
+    </p>
+
+    <div class="stats-bar">
+      <div class="stat-item">
+        <span class="stat-val">$0</span>
+        <span class="stat-label">Hardware Required</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val green">34%</span>
+        <span class="stat-label">Water Savings</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val gold">99.9%</span>
+        <span class="stat-label">Field Uptime</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val">4</span>
+        <span class="stat-label">AI Agents Active</span>
+      </div>
+    </div>
+
+    <!-- WAITLIST FORM -->
+    <div class="waitlist-box" id="waitlist">
+      <div class="waitlist-header">
+        <div class="waitlist-title">Join the Waitlist</div>
+        <div class="spots-badge">⚡ 27 SPOTS LEFT</div>
+      </div>
+      <p class="waitlist-sub">
+        First 50 farms lock in at <strong>$99/month forever</strong> — then pricing goes to $1,000/month + $3.50/acre. Get in before the window closes.
+      </p>
+
+      <div id="waitlist-form">
+        <div class="form-row">
+          <input class="form-input" type="text" id="fname" placeholder="First name" required>
+          <input class="form-input" type="text" id="lname" placeholder="Last name" required>
+        </div>
+        <div class="form-row">
+          <input class="form-input form-full" type="email" id="email" placeholder="Email address" required>
+        </div>
+        <div class="form-row">
+          <input class="form-input" type="tel" id="phone" placeholder="Phone number">
+          <input class="form-input" type="text" id="acres" placeholder="Approx. acres">
+        </div>
+        <div class="form-row">
+          <select class="form-input form-full" id="crop">
+            <option value="" disabled selected>Primary crop type</option>
+            <option>Almonds</option>
+            <option>Cotton</option>
+            <option>Corn</option>
+            <option>Wheat</option>
+            <option>Soybeans</option>
+            <option>Grapes / Wine</option>
+            <option>Vegetables</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <button class="form-submit" onclick="submitWaitlist()">
+          Reserve My Spot → Lock In $99/Month
+        </button>
+        <p class="form-disclaimer">
+          No credit card required. We'll contact you within 24 hours.<br>
+          Questions? Call Duane directly: <a href="tel:3608848127" style="color:var(--signal)">360-884-8127</a>
+        </p>
+      </div>
+
+      <div class="form-success" id="form-success">
+        <div class="success-icon">🛰️</div>
+        <div class="success-title">You're on the list.</div>
+        <p class="success-sub">
+          Duane will contact you within 24 hours to get your farm set up.<br><br>
+          In the meantime — your agents are already watching the skies.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SATELLITE SECTION -->
+<section class="satellite-section">
+  <div class="section-eyebrow">// CORNUCOPIA ENGINE · ESA SATELLITE ANALYTICS</div>
+  <h2 class="section-h2">Four Satellites.<br><span class="gold">One Field.</span></h2>
+  <p class="section-sub">
+    We fuse the entire Copernicus constellation — optical, radar, thermal, atmospheric — into a continuous per-acre intelligence stream. Cloudy day? Sentinel-1 sees through. Night? Sentinel-3 reads heat. Nothing goes dark.
+  </p>
+
+  <div class="sat-map">
+    <div class="sat-header">
+      <div class="sat-label">🛰️ LIVE · CORNUCOPIA SECTOR NE-042</div>
+      <div class="sat-label">36.778°N · -119.418°W</div>
+    </div>
+    <div class="sat-grid">
+      <!-- Generate NDVI pattern -->
+      <div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div>
+      <div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell low"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div>
+      <div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell low"></div><div class="sat-cell low"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div>
+      <div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell low"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div>
+      <div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div>
+      <div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell med"></div><div class="sat-cell high"></div><div class="sat-cell high"></div><div class="sat-cell high"></div>
+    </div>
+    <div class="radar-pulse"></div>
+    <div class="radar-pulse"></div>
+    <div class="radar-pulse"></div>
+    <div class="sat-coords">36.778°N · -119.418°W // Central Valley CA</div>
+    <div class="sat-ndvi">NDVI 0.742 // HEALTHY</div>
+  </div>
+
+  <div class="sat-metrics">
+    <div class="sat-metric">
+      <span class="sat-metric-val">0.742</span>
+      <span class="sat-metric-label">NDVI Score</span>
+      <span class="sat-metric-sub">Vegetation healthy</span>
+    </div>
+    <div class="sat-metric">
+      <span class="sat-metric-val warn">0.067</span>
+      <span class="sat-metric-label">Surface Moisture</span>
+      <span class="sat-metric-sub">m³/m³ — Critical</span>
+    </div>
+    <div class="sat-metric">
+      <span class="sat-metric-val">27.6°C</span>
+      <span class="sat-metric-label">Air Temp</span>
+      <span class="sat-metric-sub">32% humidity</span>
+    </div>
+    <div class="sat-metric">
+      <span class="sat-metric-val">+4.1%</span>
+      <span class="sat-metric-label">Yield Forecast</span>
+      <span class="sat-metric-sub">vs same period last year</span>
+    </div>
+    <div class="sat-metric">
+      <span class="sat-metric-val alert">CRITICAL</span>
+      <span class="sat-metric-label">AQAS Advisory</span>
+      <span class="sat-metric-sub">Irrigate within 6 hours</span>
+    </div>
+    <div class="sat-metric">
+      <span class="sat-metric-val">6:14 AM</span>
+      <span class="sat-metric-label">Last Satellite Pass</span>
+      <span class="sat-metric-sub">Today · 4 farms covered</span>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- AGENTS -->
+<section class="agents-section">
+  <div class="section-eyebrow">// AUTONOMOUS AGENT NETWORK</div>
+  <h2 class="section-h2">Four Agents.<br><span class="green">Always On.</span></h2>
+  <p class="section-sub">
+    While you sleep, your agents work. Every one of them has a job. None of them stop.
+  </p>
+
+  <div class="agents-grid">
+    <div class="agent-card ariah">
+      <span class="agent-icon">◈</span>
+      <div class="agent-name ariah">Ariah</div>
+      <span class="agent-role">Executive AI</span>
+      <p class="agent-desc">Monitors your entire portfolio, tracks revenue, ranks opportunities, and tells you exactly what business decision to make next.</p>
+      <div class="agent-feature">Contract renewal alerts</div>
+      <div class="agent-feature">Revenue forecasting</div>
+      <div class="agent-feature">Growth recommendations</div>
+    </div>
+    <div class="agent-card orion">
+      <span class="agent-icon">⬡</span>
+      <div class="agent-name orion">Orion</div>
+      <span class="agent-role">Market Intelligence AI</span>
+      <p class="agent-desc">Tracks commodity prices, identifies new farm leads, monitors competitor moves, and tells you when to lock contracts.</p>
+      <div class="agent-feature">Commodity price alerts</div>
+      <div class="agent-feature">Lead discovery & scoring</div>
+      <div class="agent-feature">Automated outreach</div>
+    </div>
+    <div class="agent-card aqas">
+      <span class="agent-icon">◉</span>
+      <div class="agent-name aqas">AQAS</div>
+      <span class="agent-role">Agricultural Intelligence AI</span>
+      <p class="agent-desc">Your crop scientist in orbit. Monitors soil, moisture, pests, and yield from satellite data and fires precise recommendations before problems become losses.</p>
+      <div class="agent-feature">No-sensor soil monitoring</div>
+      <div class="agent-feature">Pest radar & early detection</div>
+      <div class="agent-feature">Irrigation recommendations</div>
+    </div>
+    <div class="agent-card pluto">
+      <span class="agent-icon">◎</span>
+      <div class="agent-name pluto">Pluto</div>
+      <span class="agent-role">Operations AI</span>
+      <p class="agent-desc">Manages your crew, schedules work orders, tracks equipment, and makes sure the right people are in the right field at the right time.</p>
+      <div class="agent-feature">Work order dispatch</div>
+      <div class="agent-feature">Equipment monitoring</div>
+      <div class="agent-feature">Labor & fleet tracking</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- MORNING BRIEF DEMO -->
+<section class="brief-section">
+  <div class="section-eyebrow">// LIVEMASTER X · MORNING BRIEF</div>
+  <h2 class="section-h2">What Runs While<br><span class="green">You Sleep.</span></h2>
+  <p class="section-sub" style="margin:0 auto">Every morning before you wake up, your agents have already reviewed every acre and prioritized your day.</p>
+
+  <div class="brief-card">
+    <div class="brief-header">
+      <div class="brief-title">📱 Morning Brief — LiveMaster X</div>
+      <div class="brief-time">Generated 5:47 AM</div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-dot red"></div>
+      <div>
+        <div class="brief-agent">AQAS · Drylands West</div>
+        <div class="brief-msg">Soil moisture 29% — trigger irrigation within 6 hours to prevent yield loss. Est. impact: $12,400.</div>
+      </div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-dot yellow"></div>
+      <div>
+        <div class="brief-agent">AQAS · Mesa Norte</div>
+        <div class="brief-msg">Aphid pressure 3x threshold in Zone 4. Scout and apply before 2pm today.</div>
+      </div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-dot yellow"></div>
+      <div>
+        <div class="brief-agent">Ariah · Portfolio</div>
+        <div class="brief-msg">Mesa Norte contract renewal — 8 days to close $340K annual deal. Draft ready to send.</div>
+      </div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-dot blue"></div>
+      <div>
+        <div class="brief-agent">Orion · Market</div>
+        <div class="brief-msg">Almond futures up 4.2%. Lock forward contracts before market close today.</div>
+      </div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-dot green"></div>
+      <div>
+        <div class="brief-agent">AQAS · Sunrise Valley</div>
+        <div class="brief-msg">Almond nut fill on track. No action needed — yield projection holding at 2.8T/ac.</div>
+      </div>
+    </div>
+    <div class="brief-footer">This runs every morning before you wake up. My agents don't sleep.</div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PRICING -->
+<section class="pricing-section">
+  <div class="section-eyebrow" style="text-align:center">// PRICING · PAY PER ACRE. SAVE BY YEAR.</div>
+  <h2 class="section-h2">Replace $50,000<br>Hardware with <span class="gold">$99/Month.</span></h2>
+  <p class="section-sub" style="margin:0 auto;text-align:center">Sensor installation companies charge $5,000–$50,000 upfront plus annual monitoring fees. We charge per acre. You save from day one.</p>
+
+  <div class="pricing-grid">
+    <div class="pricing-card">
+      <div class="pricing-tier">Founder Rate</div>
+      <div class="pricing-price">$99<span>/mo</span></div>
+      <div class="pricing-acre">+ $2.00/acre/month</div>
+      <div class="pricing-note">First 50 farms only — locked in forever</div>
+      <div class="pricing-feature"><span class="check">✓</span> All 4 AI agents — Ariah, Orion, AQAS, Pluto</div>
+      <div class="pricing-feature"><span class="check">✓</span> Satellite soil monitoring — no sensors</div>
+      <div class="pricing-feature"><span class="check">✓</span> Pest radar & early detection</div>
+      <div class="pricing-feature"><span class="check">✓</span> Daily morning brief</div>
+      <div class="pricing-feature"><span class="check">✓</span> Irrigation AI recommendations</div>
+      <a href="#waitlist" class="pricing-cta secondary">Join Waitlist</a>
+    </div>
+
+    <div class="pricing-card featured">
+      <div class="featured-badge">⚡ MOST POPULAR</div>
+      <div class="pricing-tier">Professional</div>
+      <div class="pricing-price">$1,000<span>/mo</span></div>
+      <div class="pricing-acre">+ $3.50/acre/month</div>
+      <div class="pricing-note">Up to 2,000 acres · Full platform access</div>
+      <div class="pricing-feature"><span class="check">✓</span> Everything in Founder Rate</div>
+      <div class="pricing-feature"><span class="check">✓</span> Ariah CRM — full sales autopilot</div>
+      <div class="pricing-feature"><span class="check">✓</span> Harvest planner & ag economics</div>
+      <div class="pricing-feature"><span class="check">✓</span> Fleet & labor management</div>
+      <div class="pricing-feature"><span class="check">✓</span> API access & integrations</div>
+      <div class="pricing-feature"><span class="check">✓</span> Priority support from Duane</div>
+      <a href="#waitlist" class="pricing-cta primary">Reserve Your Spot</a>
+    </div>
+
+    <div class="pricing-card">
+      <div class="pricing-tier">Enterprise</div>
+      <div class="pricing-price" style="font-size:28px">Custom</div>
+      <div class="pricing-acre">2,000+ acres · Co-ops · White label</div>
+      <div class="pricing-note">Built around your operation</div>
+      <div class="pricing-feature"><span class="check">✓</span> Everything in Professional</div>
+      <div class="pricing-feature"><span class="check">✓</span> White-label platform option</div>
+      <div class="pricing-feature"><span class="check">✓</span> Dedicated onboarding</div>
+      <div class="pricing-feature"><span class="check">✓</span> Custom integrations</div>
+      <div class="pricing-feature"><span class="check">✓</span> SLA + dedicated support</div>
+      <a href="tel:3608848127" class="pricing-cta secondary">Call Duane: 360-884-8127</a>
+    </div>
+  </div>
+
+  <div class="savings-banner">
+    <p><strong>The math is simple:</strong> A 1,000 acre farm pays sensor companies $50,000 just to get started. With Quantum IrrigationOS you pay $1,000 + $3,500 = <strong>$4,500/month</strong>. You save $46,000 in year one alone — and your agents never take a day off.</p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- WHY NOW -->
+<section class="why-section">
+  <div class="section-eyebrow">// WHY NOW</div>
+  <h2 class="section-h2">Three Forces<br><span class="green">Converging.</span></h2>
+
+  <div class="why-grid">
+    <div class="why-card">
+      <span class="why-num">// 01</span>
+      <div class="why-title">Satellite Resolution Revolution</div>
+      <p class="why-body">Commercial satellite imagery is now cheap enough and precise enough to monitor individual crop rows. The Copernicus constellation — Sentinel 1, 2, 3, 5P — delivers this for free. This didn't exist at scale 3 years ago.</p>
+    </div>
+    <div class="why-card" style="border-left-color: var(--gold)">
+      <span class="why-num" style="color:var(--gold)">// 02</span>
+      <div class="why-title">AI Matured Enough to Act</div>
+      <p class="why-body">AI agents can now synthesize multi-source agricultural data in real time and take autonomous action. The agent layer is new. Quantum IrrigationOS is first to deploy it at farm level.</p>
+    </div>
+    <div class="why-card" style="border-left-color: var(--sky)">
+      <span class="why-num" style="color:var(--sky)">// 03</span>
+      <div class="why-title">Water Regulation Tightening</div>
+      <p class="why-body">California, Australia, and the EU are all tightening water restrictions. Farms that can't prove water efficiency will face penalties by 2027. We give you the data to prove it.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CONTACT -->
+<section class="contact-section">
+  <div class="section-eyebrow">// DIRECT LINE</div>
+  <h2 class="section-h2">Talk to<br><span class="green">Duane.</span></h2>
+  <p class="section-sub" style="margin:0 auto">Not a chatbot. Not a sales team. The founder — directly. Built this from a phone. Knows every acre of this platform. Ready to put yours in it.</p>
+
+  <div class="contact-card">
+    <div class="contact-name">Duane Clevenger</div>
+    <div class="contact-title">Founder · A1AI E.I.R Technology</div>
+    <div class="contact-items">
+      <a href="tel:3608848127" class="contact-item">
+        <span class="contact-icon">📞</span>
+        360-884-8127
+      </a>
+      <a href="mailto:a1bizzsolo@gmail.com" class="contact-item">
+        <span class="contact-icon">✉️</span>
+        a1bizzsolo@gmail.com
+      </a>
+      <a href="#waitlist" class="contact-item">
+        <span class="contact-icon">🛰️</span>
+        Join the waitlist — first 50 farms get $99/month forever
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <div class="nav-logo">A1AI</div>
+    <div>
+      <div style="font-size:14px;font-weight:700">Quantum IrrigationOS</div>
+      <div style="font-size:10px;color:var(--fog);font-family:'Space Mono',monospace;letter-spacing:2px">E.I.R TECHNOLOGY</div>
+    </div>
+  </div>
+  <div class="footer-tagline">My Agents Don't Sleep.</div>
+  <p class="footer-copy">
+    © 2026 A1AI E.I.R Technology · Duane Clevenger · 
+    <a href="mailto:a1bizzsolo@gmail.com">a1bizzsolo@gmail.com</a> · 
+    <a href="tel:3608848127">360-884-8127</a>
+  </p>
+</footer>
+
+<script>
+function submitWaitlist() {
+  const fname = document.getElementById('fname').value.trim();
+  const lname = document.getElementById('lname').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const phone = document.getElementById('phone').value.trim();
+  const acres = document.getElementById('acres').value.trim();
+  const crop  = document.getElementById('crop').value;
+
+  if (!fname || !email) {
+    alert('Please enter your name and email to join the waitlist.');
+    return;
+  }
+
+  // Send to Duane via email using mailto
+  const subject = encodeURIComponent('🌾 New Waitlist Signup — Quantum IrrigationOS');
+  const body = encodeURIComponent(
+    `NEW WAITLIST SIGNUP\n\n` +
+    `Name: ${fname} ${lname}\n` +
+    `Email: ${email}\n` +
+    `Phone: ${phone || 'Not provided'}\n` +
+    `Acres: ${acres || 'Not provided'}\n` +
+    `Crop: ${crop || 'Not provided'}\n\n` +
+    `Submitted: ${new Date().toLocaleString()}`
+  );
+
+  // Open email to Duane
+  window.open(`mailto:a1bizzsolo@gmail.com?subject=${subject}&body=${body}`);
+
+  // Show success
+  document.getElementById('waitlist-form').style.display = 'none';
+  document.getElementById('form-success').classList.add('show');
+
+  // Update spots counter
+  const badge = document.querySelector('.spots-badge');
+  if (badge) badge.textContent = '⚡ 26 SPOTS LEFT';
+}
+
+// Animate stats on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.style.opacity = '1';
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.agent-card, .why-card, .pricing-card').forEach(el => {
+  el.style.opacity = '0';
+  el.style.transition = 'opacity 0.5s ease, transform 0.3s ease';
+  observer.observe(el);
+});
+</script>
+</body>
+</html>
